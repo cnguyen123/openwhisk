@@ -43,6 +43,8 @@ import scala.annotation.tailrec
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 
+import org.apache.openwhisk.core.loadBalancer.InvokerLabelHelper
+
 /**
  * A loadbalancer that schedules workload based on a hashing-algorithm.
  *
@@ -408,7 +410,14 @@ object ShardingContainerPoolBalancer extends LoadBalancerProvider {
     val numInvokers = invokers.size
 
     if (numInvokers > 0) {
+    	//CN: ensure any invoker lableed with openwhisk-drain=true is not selected for new activations
       val invoker = invokers(index)
+      while (InvokerLabelHelper.isDrainable(invoker.id)){
+      	val newIndex = (index + step) % invokers.size
+      	if (newIndex == index) return None //All invokers are drainable
+      	invoker = invokers(newIndex)
+      }
+      //CN: End
       //test this invoker - if this action supports concurrency, use the scheduleConcurrent function
       if (invoker.status.isUsable && dispatched(invoker.id.toInt).tryAcquireConcurrent(fqn, maxConcurrent, slots)) {
         Some(invoker.id, false)
@@ -583,6 +592,22 @@ case class ShardingContainerPoolBalancerState(
     }
   }
 }
+
+//CN: add label helper
+
+object InvokerLabelHelper {
+  import scala.sys.process._
+  import scala.util.Try
+
+  def isDrainable(invokerId: InvokerInstanceId): Boolean = {
+    val podName = s"wskopenwhisk-invoker-${invokerId.toInt}"
+    val labelCheck = Try(
+      s"kubectl get pod $podName -n openwhisk -o jsonpath={.metadata.labels['openwhisk-drain']}".!!
+    )
+    labelCheck.map(_.trim == "true").getOrElse(false)
+  }
+}
+//CN: End
 
 /**
  * Configuration for the cluster created between loadbalancers.
