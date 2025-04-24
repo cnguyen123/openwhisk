@@ -43,7 +43,7 @@ import scala.annotation.tailrec
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 
-import org.apache.openwhisk.core.loadBalancer.InvokerLabelHelper
+//import org.apache.openwhisk.core.loadBalancer.InvokerLabelHelper
 
 /**
  * A loadbalancer that schedules workload based on a hashing-algorithm.
@@ -411,11 +411,20 @@ object ShardingContainerPoolBalancer extends LoadBalancerProvider {
 
     if (numInvokers > 0) {
     	//CN: ensure any invoker lableed with openwhisk-drain=true is not selected for new activations
-      val invoker = invokers(index)
-      while (InvokerLabelHelper.isDrainable(invoker.id)){
-      	val newIndex = (index + step) % invokers.size
-      	if (newIndex == index) return None //All invokers are drainable
-      	invoker = invokers(newIndex)
+      
+      var currentIndex = index 
+      var invoker = invokers(currentIndex)
+      var attempts = 0
+
+      while (InvokerLabelHelper.isDrainable(invoker.id) && attempts < numInvokers) {
+  	currentIndex = (currentIndex + step) % numInvokers
+  	invoker = invokers(currentIndex)
+  	attempts += 1
+	}
+
+      if (attempts == numInvokers) {
+  	// All invokers are drainable
+  	return None
       }
       //CN: End
       //test this invoker - if this action supports concurrency, use the scheduleConcurrent function
