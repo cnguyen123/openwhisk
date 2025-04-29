@@ -6,7 +6,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,6 +53,12 @@ dependencies {
         exclude group: 'log4j'
         exclude group: 'jline'
     }
+
+    // Add test dependencies here
+   testImplementation "org.scalatest:scalatest_${gradle.scala.version}:3.2.18"
+    testImplementation "com.typesafe.akka:akka-testkit_${gradle.scala.version}:${gradle.akka.version}"
+    testImplementation project(':core:test')
+    testImplementation project(':core:containerpool:test')
 }
 
 mainClassName = "org.apache.openwhisk.core.invoker.Invoker"

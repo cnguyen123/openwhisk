@@ -433,12 +433,42 @@ class ContainerPool(childFactory: ActorRefFactory => ActorRef,
       }
   }
 
+  //CN: toggle this default method
   /** Removes a container and updates state accordingly. */
-  def removeContainer(toDelete: ActorRef) = {
-    toDelete ! Remove
-    freePool = freePool - toDelete
-    busyPool = busyPool - toDelete
+  //def removeContainer(toDelete: ActorRef) = {
+  //  toDelete ! Remove
+  //  freePool = freePool - toDelete
+  //  busyPool = busyPool - toDelete
+  //}
+  
+
+  //CN: customize remove container 
+  //helper
+  private def markDrained(containerData: ContainerData): ContainerData = containerData match {
+    case w: WarmedData       => w.copy(isDrained = true)
+    case w: WarmingData      => w.copy(isDrained = true)
+    case w: WarmingColdData  => w.copy(isDrained = true)
+    case other               => other
   }
+
+  def removeContainer(toDelete: ActorRef): Unit = {
+  // Mark drained if present
+  freePool.get(toDelete).foreach { data =>
+    freePool = freePool.updated(toDelete, markDrained(data))
+  }
+  busyPool.get(toDelete).foreach { data =>
+    busyPool = busyPool.updated(toDelete, markDrained(data))
+  }
+
+  // Now send Remove
+  toDelete ! Remove
+
+  // Now really remove it
+  freePool -= toDelete
+  busyPool -= toDelete
+  }
+    //CN: end
+  
 
   /**
    * Calculate if there is enough free memory within a given pool.
@@ -506,27 +536,48 @@ object ContainerPool {
    * @param idles a map of idle containers, awaiting work
    * @return a container if one found
    */
+  
+  //protected[containerpool] def schedule[A](action: ExecutableWhiskAction,
+  //                                        invocationNamespace: EntityName,
+  //                                         idles: Map[A, ContainerData]): Option[(A, ContainerData)] = {
+  //  idles
+  //    .find {
+  //      case (_, c @ WarmedData(_, `invocationNamespace`, `action`, _, _, _, isDrained)) if !isDrained && c.hasCapacity() => true //CN: When trying to schedule a new request, must skip any container where isDrained == true
+  //      case _                                                                                   => false
+  //    }
+  //    .orElse {
+  //      idles.find {
+  //        case (_, c @ WarmingData(_, `invocationNamespace`, `action`, _, _, isDrained)) if !isDrained && c.hasCapacity() => true //CN: When trying to schedule a new request, must skip any container where isDrained == true
+  //        case _                                                                                 => false
+  //      }
+  //    }
+  //    .orElse {
+  //      idles.find {
+  //        case (_, c @ WarmingColdData(`invocationNamespace`, `action`, _, _, isDrained)) if !isDrained && c.hasCapacity() => true //CN: When trying to schedule a new request, must skip any container where isDrained == true
+  //        case _                                                                                  => false
+  //      }
+  //    }
+  // }
+
+  //CN: add this customized schedule to consider isDrained. 
   protected[containerpool] def schedule[A](action: ExecutableWhiskAction,
-                                           invocationNamespace: EntityName,
-                                           idles: Map[A, ContainerData]): Option[(A, ContainerData)] = {
-    idles
-      .find {
-        case (_, c @ WarmedData(_, `invocationNamespace`, `action`, _, _, _)) if c.hasCapacity() => true
-        case _                                                                                   => false
-      }
-      .orElse {
-        idles.find {
-          case (_, c @ WarmingData(_, `invocationNamespace`, `action`, _, _)) if c.hasCapacity() => true
-          case _                                                                                 => false
-        }
-      }
-      .orElse {
-        idles.find {
-          case (_, c @ WarmingColdData(`invocationNamespace`, `action`, _, _)) if c.hasCapacity() => true
-          case _                                                                                  => false
-        }
-      }
-  }
+                                          invocationNamespace: EntityName,
+                                          idles: Map[A, ContainerData])(implicit logging: Logging): Option[(A, ContainerData)] = {
+  idles
+    .find {
+      case (ref, c @ WarmedData(_, `invocationNamespace`, `action`, _, _, _, isDrained)) =>
+        if (isDrained) logging.info(this, s"Skipping drained warmed container: $ref")
+        !isDrained && c.hasCapacity()
+      case (ref, c @ WarmingData(_, `invocationNamespace`, `action`, _, _, isDrained)) =>
+        if (isDrained) logging.info(this, s"Skipping drained warming container: $ref")
+        !isDrained && c.hasCapacity()
+      case (ref, c @ WarmingColdData(`invocationNamespace`, `action`, _, _, isDrained)) =>
+        if (isDrained) logging.info(this, s"Skipping drained warming-cold container: $ref")
+        !isDrained && c.hasCapacity()
+      case _ => false
+    }
+}
+//CN : end
 
   /**
    * Finds the oldest previously used container to remove to make space for the job passed to run.

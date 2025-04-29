@@ -1,0 +1,11 @@
+plugins {
+    id 'scala'
+}
+
+dependencies {
+    implementation project(':common:scala')
+    implementation "org.scala-lang:scala-library:${gradle.scala.version}"
+    implementation "org.scalatest:scalatest_${gradle.scala.version}:3.2.18"
+    implementation "com.typesafe.akka:akka-actor_${gradle.scala.version}:${gradle.akka.version}"
+    implementation "com.typesafe.akka:akka-testkit_${gradle.scala.version}:${gradle.akka.version}"
+}

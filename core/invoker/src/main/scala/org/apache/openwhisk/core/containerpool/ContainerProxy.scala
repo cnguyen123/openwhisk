@@ -159,7 +159,9 @@ case class WarmingData(override val container: Container,
                        invocationNamespace: EntityName,
                        action: ExecutableWhiskAction,
                        override val lastUsed: Instant,
-                       override val activeActivationCount: Int = 0)
+                       override val activeActivationCount: Int = 0,
+                       isDrained: Boolean = false   //CN: add this value
+                       )
     extends ContainerStarted(container, lastUsed, action.limits.memory.megabytes.MB, activeActivationCount)
     with ContainerInUse {
   override val initingState = "warming"
@@ -170,7 +172,9 @@ case class WarmingData(override val container: Container,
 case class WarmingColdData(invocationNamespace: EntityName,
                            action: ExecutableWhiskAction,
                            override val lastUsed: Instant,
-                           override val activeActivationCount: Int = 0)
+                           override val activeActivationCount: Int = 0,
+                           isDrained: Boolean = false   //CN: add this value
+                           )
     extends ContainerNotStarted(lastUsed, action.limits.memory.megabytes.MB, activeActivationCount)
     with ContainerInUse {
   override val initingState = "warmingCold"
@@ -183,7 +187,9 @@ case class WarmedData(override val container: Container,
                       action: ExecutableWhiskAction,
                       override val lastUsed: Instant,
                       override val activeActivationCount: Int = 0,
-                      resumeRun: Option[Run] = None)
+                      resumeRun: Option[Run] = None,
+                      isDrained: Boolean = false   //CN: add this value
+                      )
     extends ContainerStarted(container, lastUsed, action.limits.memory.megabytes.MB, activeActivationCount)
     with ContainerInUse {
   override val initingState = "warmed"
